@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <!-- Custom favicon -->
+    <link rel="icon" type="image/png" href="/newlogo.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>grocery</title>
+
+    <!-- Prevent theme flash -->
+    <script>
+      (function () {
+        try {
+          var saved = localStorage.getItem("adminTheme");
+          var isDark = saved
+            ? saved === "dark"
+            : window.matchMedia("(prefers-color-scheme: dark)").matches;
+          if (isDark) document.documentElement.classList.add("dark");
+          document.documentElement.style.colorScheme = isDark ? "dark" : "light";
+        } catch (_) {}
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
