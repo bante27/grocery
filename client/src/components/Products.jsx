@@ -2,10 +2,12 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { ShoppingCart } from 'lucide-react';
+import { useCart } from '../context/CartContext'; // Import cart context
 
 const Products = () => {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const { addToCart } = useCart(); // Get addToCart function
 
   const fetchProducts = async () => {
     try {
@@ -21,6 +23,21 @@ const Products = () => {
   useEffect(() => {
     fetchProducts();
   }, []);
+
+  // Function to handle adding product to cart
+  const handleAddToCart = (product) => {
+    // Format product data for cart
+    const cartProduct = {
+      id: product.id,
+      name: product.name,
+      description: product.description,
+      price: parseFloat(product.price), // Ensure price is a number
+      image: product.image ? `http://127.0.0.1:8000/storage/${product.image}` : '/placeholder-product.jpg',
+      originalProduct: product // Keep original data if needed
+    };
+    
+    addToCart(cartProduct);
+  };
 
   if (loading) {
     return (
@@ -39,7 +56,7 @@ const Products = () => {
         {products.map((product) => (
           <div key={product.id} className="bg-white rounded-lg shadow hover:shadow-xl transition-shadow overflow-hidden group">
             {/* Product Image */}
-            <div className="h-56 overflow-hidden">
+            <div className="h-56 overflow-hidden relative">
               {product.image ? (
                 <img
                   src={`http://127.0.0.1:8000/storage/${product.image}`}
@@ -51,23 +68,45 @@ const Products = () => {
                   <span className="text-gray-500">No Image</span>
                 </div>
               )}
+              
+              {/* Quick Add to Cart Overlay */}
+              <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all duration-300 flex items-center justify-center opacity-0 group-hover:opacity-100">
+                <button 
+                  onClick={() => handleAddToCart(product)}
+                  className="bg-emerald-600 text-white px-6 py-3 rounded-full font-semibold hover:bg-emerald-700 transition-colors transform translate-y-4 group-hover:translate-y-0 transition-transform duration-300 flex items-center gap-2"
+                >
+                  <ShoppingCart className="w-5 h-5" />
+                  Quick Add
+                </button>
+              </div>
             </div>
             
             {/* Product Details */}
             <div className="p-4">
-              <h2 className="font-bold text-lg mb-1">{product.name}</h2>
+              <h2 className="font-bold text-lg mb-1 truncate">{product.name}</h2>
               <p className="text-gray-600 text-sm mb-3 line-clamp-2">
                 {product.description}
               </p>
               
               <div className="flex justify-between items-center">
-                <span className="text-xl font-bold text-green-600">
-                  ${product.price}
+                <span className="text-xl font-bold text-emerald-600">
+                  ${parseFloat(product.price).toFixed(2)}
                 </span>
-                <button className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition">
+                <button 
+                  onClick={() => handleAddToCart(product)}
+                  className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded hover:bg-emerald-700 transition-colors"
+                >
                   <ShoppingCart className="w-4 h-4" />
                   Add to Cart
                 </button>
+              </div>
+              
+              {/* Additional Info */}
+              <div className="mt-3 pt-3 border-t text-xs text-gray-500 flex justify-between">
+                <span>ID: {product.id}</span>
+                {product.category && (
+                  <span className="bg-gray-100 px-2 py-1 rounded">Category</span>
+                )}
               </div>
             </div>
           </div>

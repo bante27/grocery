@@ -4,120 +4,197 @@ namespace App\Http\Controllers;
 
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Facades\Validator;
 
 class AuthController extends Controller
 {
-    public function login(Request $request)
+    // ... other methods ...
+    
+    /**
+     * Admin login - checks for admin role
+     */
+    public function adminLogin(Request $request)
     {
-        try {
-            $request->validate([
-                'email' => 'required|email',
-                'password' => 'required',
-            ]);
-            
-            // For demo purposes, you can use a hardcoded admin user
-            // Or create a real user in your database
-            $email = $request->email;
-            $password = $request->password;
-            
-            // Check if user exists in database
-            $user = User::where('email', $email)->first();
-            
-            // If no user exists in database, use demo credentials
-            if (!$user) {
-                // Demo credentials (you can change these)
-                if ($email === 'admin@example.com' && $password === 'admin123') {
-                    // Create a temporary user for demo
-                    $user = new User();
-                    $user->id = 1;
-                    $user->name = 'Admin User';
-                    $user->email = 'admin@example.com';
-                    $user->is_admin = true;
-                    
-                    // Generate a token (for Sanctum)
-                    $token = $user->createToken('admin-token')->plainTextToken;
-                    
-                    return response()->json([
-                        'success' => true,
-                        'token' => $token,
-                        'user' => [
-                            'id' => $user->id,
-                            'name' => $user->name,
-                            'email' => $user->email,
-                            'is_admin' => true
-                        ],
-                        'message' => 'Logged in successfully (demo mode)'
-                    ], 200);
-                } else {
-                    throw ValidationException::withMessages([
-                        'email' => ['Invalid credentials'],
-                    ]);
-                }
-            }
-            
-            // If user exists in database, check password
-            if (!Hash::check($password, $user->password)) {
-                throw ValidationException::withMessages([
-                    'email' => ['Invalid credentials'],
-                ]);
-            }
-            
-            // Check if user is admin
-            if (!$user->is_admin) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Access denied. Admin privileges required.'
-                ], 403);
-            }
-            
-            // Create Sanctum token
-            $token = $user->createToken('admin-token')->plainTextToken;
-            
-            return response()->json([
-                'success' => true,
-                'token' => $token,
-                'user' => [
-                    'id' => $user->id,
-                    'name' => $user->name,
-                    'email' => $user->email,
-                    'is_admin' => $user->is_admin
-                ],
-                'message' => 'Logged in successfully'
-            ], 200);
-            
-        } catch (ValidationException $e) {
+        // Validate input
+        $validator = Validator::make($request->all(), [
+            'email' => 'required|email|exists:users,email',
+            'password' => 'required|string|min:6',
+        ]);
+
+        if ($validator->fails()) {
             return response()->json([
                 'success' => false,
                 'message' => 'Validation failed',
-                'errors' => $e->errors()
+                'errors' => $validator->errors()
             ], 422);
-        } catch (\Exception $e) {
+        }
+
+        // Check credentials
+        if (!Auth::attempt($request->only('email', 'password'))) {
             return response()->json([
                 'success' => false,
-                'message' => 'Login failed',
-                'error' => $e->getMessage()
-            ], 500);
+                'message' => 'Invalid email or password'
+            ], 401);
         }
+
+        $user = User::where('email', $request->email)->first();
+        
+        // Check if user has admin role
+        if ($user->role !== 'admin') {
+            Auth::logout();
+            return response()->json([
+                'success' => false,
+                'message' => 'Access denied. Admin privileges required.'
+            ], 403);
+        }
+
+        // Create admin token
+        $token = $user->createToken('admin_token', ['admin'])->plainTextToken;
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Admin login successful',
+            'user' => [
+                'id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+                'phone' => $user->phone,
+                'role' => $user->role,
+                'isAdmin' => true,
+            ],
+            'token' => $token
+        ]);
     }
+    /**
+ * Regular user login
+ */
+public function login(Request $request)
+{
+    // Validate input
+    $validator = Validator::make($request->all(), [
+        'email' => 'required|email|exists:users,email',
+        'password' => 'required|string|min:6',
+    ]);
+
+    if ($validator->fails()) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Validation failed',
+            'errors' => $validator->errors()
+        ], 422);
+    }
+
+    // Check credentials
+    if (!Auth::attempt($request->only('email', 'password'))) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Invalid email or password'
+        ], 401);
+    }
+
+    $user = User::where('email', $request->email)->first();
     
-    public function logout(Request $request)
-    {
-        try {
-            $request->user()->currentAccessToken()->delete();
-            
-            return response()->json([
-                'success' => true,
-                'message' => 'Logged out successfully'
-            ], 200);
-            
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Logout failed',
-                'error' => $e->getMessage()
-            ], 500);
-        }
+    // Create token based on role
+    $token = $user->createToken('auth_token', [$user->role])->plainTextToken;
+
+    return response()->json([
+        'success' => true,
+        'message' => 'Login successful',
+        'user' => [
+            'id' => $user->id,
+            'name' => $user->name,
+            'email' => $user->email,
+            'phone' => $user->phone,
+            'role' => $user->role,
+            'isAdmin' => $user->role === 'admin',
+        ],
+        'token' => $token
+    ]);
+}
+
+/**
+ * Show login form (for web routes)
+ */
+public function showLoginForm()
+{
+    return view('auth.login'); // Make sure this view exists
+}
+
+/**
+ * Show registration form (for web routes)
+ */
+public function showRegistrationForm()
+{
+    return view('auth.register'); // Make sure this view exists
+}
+
+/**
+ * Handle user registration
+ */
+public function register(Request $request)
+{
+    // Validate input
+    $validator = Validator::make($request->all(), [
+        'name' => 'required|string|max:255',
+        'email' => 'required|email|unique:users,email',
+        'phone' => 'nullable|string|max:20',
+        'password' => 'required|string|min:6|confirmed',
+    ]);
+
+    if ($validator->fails()) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Validation failed',
+            'errors' => $validator->errors()
+        ], 422);
     }
+
+    // Create user
+    $user = User::create([
+        'name' => $request->name,
+        'email' => $request->email,
+        'phone' => $request->phone,
+        'password' => Hash::make($request->password),
+        'role' => 'user', // Default role
+    ]);
+
+    // Login the user
+    Auth::login($user);
+    
+    // Create token
+    $token = $user->createToken('auth_token', ['user'])->plainTextToken;
+
+    return response()->json([
+        'success' => true,
+        'message' => 'Registration successful',
+        'user' => [
+            'id' => $user->id,
+            'name' => $user->name,
+            'email' => $user->email,
+            'phone' => $user->phone,
+            'role' => $user->role,
+            'isAdmin' => false,
+        ],
+        'token' => $token
+    ]);
+}
+
+/**
+ * Logout method
+ */
+public function logout(Request $request)
+{
+    Auth::logout();
+    $request->session()->invalidate();
+    $request->session()->regenerateToken();
+
+    return response()->json([
+        'success' => true,
+        'message' => 'Logged out successfully'
+    ]);
+}
+
+    // ... other methods ...
 }

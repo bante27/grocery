@@ -6,6 +6,7 @@ import { ThemeProvider } from './context/ThemeContext';
 import Layout from './components/layout/Layout';
 
 // Import your pages
+import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Users from './pages/Users';
 import Products from './pages/Products';
@@ -14,89 +15,104 @@ import Messages from './pages/Messages';
 import Profile from './pages/Profile';
 import Settings from './pages/Settings';
 
-// Optional: Remove Login import completely (or keep if you want fallback)
-import Login from './pages/Login'; // You can delete this file later
+// Simple Protected Route Component (inline version)
+const ProtectedRoute = ({ children }) => {
+  const token = localStorage.getItem('adminToken');
+  const user = localStorage.getItem('adminUser');
+  
+  if (!token || !user) {
+    return <Navigate to="/login" replace />;
+  }
+  
+  try {
+    const userData = JSON.parse(user);
+    if (userData.role !== 'admin') {
+      localStorage.removeItem('adminToken');
+      localStorage.removeItem('adminUser');
+      return <Navigate to="/login" replace />;
+    }
+  } catch (error) {
+    localStorage.removeItem('adminToken');
+    localStorage.removeItem('adminUser');
+    return <Navigate to="/login" replace />;
+  }
+  
+  return children;
+};
 
 function App() {
   return (
-    <AuthProvider>
-      <ThemeProvider>
+    <ThemeProvider>
+      <AuthProvider>
         <Router>
           <Routes>
-            {/* ROOT & LOGIN → Instantly go to Dashboard (Auto-login active) */}
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
-            <Route path="/login" element={<Navigate to="/dashboard" replace />} />
-
-            {/* All Admin Routes — No login required anymore */}
-            <Route
-              path="/dashboard"
-              element={
+            {/* Public Routes */}
+            <Route path="/" element={<Navigate to="/login" replace />} />
+            <Route path="/login" element={<Login />} />
+            
+            {/* Protected Admin Routes */}
+            <Route path="/dashboard" element={
+              <ProtectedRoute>
                 <Layout>
                   <Dashboard />
                 </Layout>
-              }
-            />
+              </ProtectedRoute>
+            } />
 
-            <Route
-              path="/users"
-              element={
+            <Route path="/users" element={
+              <ProtectedRoute>
                 <Layout>
                   <Users />
                 </Layout>
-              }
-            />
+              </ProtectedRoute>
+            } />
 
-            <Route
-              path="/products"
-              element={
+            <Route path="/products" element={
+              <ProtectedRoute>
                 <Layout>
                   <Products />
                 </Layout>
-              }
-            />
+              </ProtectedRoute>
+            } />
 
-            <Route
-              path="/orders"
-              element={
+            <Route path="/orders" element={
+              <ProtectedRoute>
                 <Layout>
                   <Orders />
                 </Layout>
-              }
-            />
+              </ProtectedRoute>
+            } />
 
-            <Route
-              path="/messages"
-              element={
+            <Route path="/messages" element={
+              <ProtectedRoute>
                 <Layout>
                   <Messages />
                 </Layout>
-              }
-            />
+              </ProtectedRoute>
+            } />
 
-            <Route
-              path="/profile"
-              element={
+            <Route path="/profile" element={
+              <ProtectedRoute>
                 <Layout>
                   <Profile />
                 </Layout>
-              }
-            />
+              </ProtectedRoute>
+            } />
 
-            <Route
-              path="/settings"
-              element={
+            <Route path="/settings" element={
+              <ProtectedRoute>
                 <Layout>
                   <Settings />
                 </Layout>
-              }
-            />
+              </ProtectedRoute>
+            } />
 
-            {/* Optional: Fallback if someone types wrong URL */}
-            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+            {/* Fallback */}
+            <Route path="*" element={<Navigate to="/login" replace />} />
           </Routes>
         </Router>
-      </ThemeProvider>
-    </AuthProvider>
+      </AuthProvider>
+    </ThemeProvider>
   );
 }
 
