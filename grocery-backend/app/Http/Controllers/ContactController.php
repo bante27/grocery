@@ -7,38 +7,43 @@ use App\Models\ContactMessage;
 use App\Mail\ContactAdminNotification;
 use App\Mail\ContactUserConfirmation;
 use Illuminate\Support\Facades\Mail;
-use Exception;
 
 class ContactController extends Controller
 {
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => 'required|email|max:255',
-            'phone' => 'nullable|string|max:20',
+            'name'    => 'required|string|max:255',
+            'email'   => 'required|email|max:255',
+            'phone'   => 'nullable|string|max:20',
             'subject' => 'required|string|max:255',
             'message' => 'required|string',
         ]);
 
+        // Save to DB
+        $contact = ContactMessage::create($validated);
+
         try {
-            // Save to database
-            $message = ContactMessage::create($validated);
+            \Log::info('CONTACT MAIL STARTED');
 
-            // Send emails
-            Mail::to('mitikubantalem07@gmail.com')->send(new ContactAdminNotification($validated));
-            Mail::to($validated['email'])->send(new ContactUserConfirmation($validated));
+            // Admin email
+            Mail::to('mitikubantalem07@gmail.com')
+                ->send(new ContactAdminNotification($contact));
 
-            return response()->json([
-                'message' => 'Message sent successfully!'
-            ], 200);
+            // User email
+            Mail::to($contact->email)
+                ->send(new ContactUserConfirmation($contact));
 
-        } catch (Exception $e) {
-            \Log::error('Contact email failed: ' . $e->getMessage());
-
-            return response()->json([
-                'message' => 'Failed to send message. Please try again later.'
-            ], 500);
+            \Log::info('CONTACT MAIL SENT');
+        } catch (\Throwable $e) {
+            \Log::error('CONTACT MAIL FAILED', [
+                'error' => $e->getMessage(),
+            ]);
         }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Message received successfully'
+        ]);
     }
 }

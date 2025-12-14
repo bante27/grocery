@@ -1,15 +1,10 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="utf-8">
-    <title>Thank You!</title>
-</head>
-<body>
-    <h2>Hi {{ $data['name'] }},</h2>
-    <p>Thank you for reaching out to us!</p>
-    <p>We have received your message and will get back to you as soon as possible.</p>
-    <p><strong>Your Message:</strong></p>
-    <blockquote>{{ $data['message'] }}</blockquote>
-    <p>Best regards,<br>Your Company Name</p>
-</body>
-</html>
+<p>Hello {{ $data->name }},</p>
+
+<p>Thank you for contacting <strong>Grocery Store</strong>.</p>
+
+<p><strong>Your message:</strong></p>
+<p>{{ $data->message }}</p>
+
+<p>We will reply shortly.</p>
+
+<p>Regards,<br>Grocery Store Team</p>

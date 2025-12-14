@@ -1,4 +1,4 @@
-import React, { useEffect, useReducer } from 'react';
+import React, { useEffect, useReducer, useState } from 'react';
 import axios from 'axios';
 import Button from '../components/common/Button';
 import Modal from '../components/common/Modal';
@@ -57,6 +57,7 @@ function reducer(state, action) {
 const Messages = () => {
   const { token } = useAuth();
   const [state, dispatch] = useReducer(reducer, initialState);
+  const [replyText, setReplyText] = useState('');
   const { messages, loading, selectedMessage, showModal, filterUnread, search } = state;
 
   const apiHeaders = {
@@ -78,7 +79,7 @@ const Messages = () => {
     }
   };
 
-  // Toggle Read/Unread
+  // Toggle read/unread
   const toggleRead = async (msg) => {
     const updated = { ...msg, is_read: !msg.is_read };
     dispatch({ type: 'UPDATE_MESSAGE', payload: updated });
@@ -93,6 +94,7 @@ const Messages = () => {
     }
   };
 
+  // Delete message
   const deleteMessage = async (msg) => {
     if (!window.confirm('Delete this message?')) return;
     try {
@@ -103,9 +105,22 @@ const Messages = () => {
     }
   };
 
-  const replyMessage = (msg) => {
-    if (!msg.email) return alert('No email to reply!');
-    window.location.href = `mailto:${msg.email}?subject=${encodeURIComponent('Re: ' + msg.subject)}`;
+  // Admin reply without saving
+  const sendReply = async () => {
+    if (!replyText.trim()) return alert('Reply cannot be empty!');
+    try {
+      await axios.post(
+        `http://127.0.0.1:8000/api/admin/messages/${selectedMessage.id}/reply`,
+        { reply: replyText },
+        apiHeaders
+      );
+      alert('Reply sent successfully!');
+      setReplyText('');
+      dispatch({ type: 'CLOSE_MODAL' });
+    } catch (err) {
+      console.error(err);
+      alert('Failed to send reply');
+    }
   };
 
   const filteredMessages = messages.filter((m) => {
@@ -183,16 +198,22 @@ const Messages = () => {
             </div>
             <div className="whitespace-pre-wrap">{selectedMessage.message}</div>
 
-            <div className="flex flex-wrap gap-3 pt-4 border-t">
-              <Button onClick={() => toggleRead(selectedMessage)}>
-                {selectedMessage.is_read ? 'Mark as Unread' : 'Mark as Read'}
-              </Button>
-              <Button variant="outline" onClick={() => replyMessage(selectedMessage)}>
-                Reply via Email
-              </Button>
-              <Button variant="danger" onClick={() => deleteMessage(selectedMessage)}>
-                Delete Message
-              </Button>
+            <div className="pt-4 border-t space-y-2">
+              <textarea
+                value={replyText}
+                onChange={(e) => setReplyText(e.target.value)}
+                placeholder="Write your reply..."
+                className="border p-2 w-full rounded"
+              />
+              <div className="flex gap-2 flex-wrap">
+                <Button onClick={sendReply}>Send Reply</Button>
+                <Button onClick={() => toggleRead(selectedMessage)}>
+                  {selectedMessage.is_read ? 'Mark as Unread' : 'Mark as Read'}
+                </Button>
+                <Button variant="danger" onClick={() => deleteMessage(selectedMessage)}>
+                  Delete Message
+                </Button>
+              </div>
             </div>
           </div>
         )}
