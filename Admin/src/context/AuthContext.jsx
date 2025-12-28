@@ -1,193 +1,160 @@
 // src/context/AuthContext.jsx
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import axios from 'axios';
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+} from "react";
+import axios from "axios";
 
+/* ---------------- CONTEXT ---------------- */
 const AuthContext = createContext();
 
+/* ---------------- HOOK ---------------- */
 export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (!context) throw new Error('useAuth must be used within AuthProvider');
-  return context;
+  const ctx = useContext(AuthContext);
+  if (!ctx) {
+    throw new Error("useAuth must be used inside AuthProvider");
+  }
+  return ctx;
 };
 
+/* ---------------- PROVIDER ---------------- */
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
-  const [token, setToken] = useState(null);
+  const [token, setToken] = useState(localStorage.getItem("adminToken"));
   const [loading, setLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [role, setRole] = useState('guest');
+  const [role, setRole] = useState("guest");
 
-  // Create axios instance for API calls
+  /* ---------------- AXIOS INSTANCE ---------------- */
   const api = axios.create({
-    baseURL: 'http://localhost:8000/api',
+    baseURL: "http://localhost:8000/api",
     headers: {
-      'Accept': 'application/json',
-      'Content-Type': 'application/json',
+      Accept: "application/json",
+      "Content-Type": "application/json",
     },
-    timeout: 10000, // 10 second timeout
+    timeout: 10000,
   });
 
-  // Add token to requests if exists
+  /* ---------------- AXIOS INTERCEPTOR ---------------- */
   api.interceptors.request.use(
     (config) => {
-      const token = localStorage.getItem('adminToken');
-      if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
+      const storedToken = localStorage.getItem("adminToken");
+      if (storedToken) {
+        config.headers.Authorization = `Bearer ${storedToken}`;
       }
       return config;
     },
-    (error) => {
-      return Promise.reject(error);
-    }
+    (error) => Promise.reject(error)
   );
 
+  /* ---------------- CHECK SESSION ---------------- */
   useEffect(() => {
-    const checkExistingSession = async () => {
-      const savedToken = localStorage.getItem('adminToken');
-      const savedUser = localStorage.getItem('adminUser');
-      
-      if (savedToken && savedUser) {
-        try {
-          // Verify token with backend
-          const response = await api.get('/user');
-          
-          if (response.data.success) {
-            const userData = response.data.user;
-            
-            // Check if user is admin
-            if (userData.role !== 'admin') {
-              console.log('User is not admin, logging out...');
-              logout();
-              return;
-            }
-            
-            setUser(userData);
-            setToken(savedToken);
-            setIsAuthenticated(true);
-            setRole(userData.role);
-            setLoading(false);
-            return;
-          }
-        } catch (error) {
-          console.log('Token verification failed:', error.message);
-          // Token is invalid, clear storage
-          localStorage.removeItem('adminToken');
-          localStorage.removeItem('adminUser');
-        }
+    const checkSession = async () => {
+      const storedToken = localStorage.getItem("adminToken");
+
+      if (!storedToken) {
+        setLoading(false);
+        return;
       }
-      setLoading(false);
+
+      try {
+        const res = await api.get("/user");
+
+        if (res.data && res.data.role === "admin") {
+          setUser(res.data);
+          setToken(storedToken);
+          setRole("admin");
+          setIsAuthenticated(true);
+        } else {
+          logout(false);
+        }
+      } catch (err) {
+        console.error("Session check failed");
+        logout(false);
+      } finally {
+        setLoading(false);
+      }
     };
 
-    checkExistingSession();
+    checkSession();
+    // eslint-disable-next-line
   }, []);
 
-  // Admin login function
+  /* ---------------- LOGIN ---------------- */
   const login = async (email, password) => {
     try {
-      const response = await api.post('/admin/login', {
-        email,
-        password
-      });
-      
-      if (response.data.success) {
-        const { token, user } = response.data;
-        
-        // Verify user is admin
-        if (user.role !== 'admin') {
-          return { 
-            success: false, 
-            error: 'Access denied. Admin privileges required.' 
-          };
-        }
-        
-        // Save to localStorage
-        localStorage.setItem('adminToken', token);
-        localStorage.setItem('adminUser', JSON.stringify(user));
-        
-        // Update state
-        setUser(user);
-        setToken(token);
-        setIsAuthenticated(true);
-        setRole(user.role);
-        
-        return { 
-          success: true, 
-          user,
-          token
-        };
-      } else {
-        return { 
-          success: false, 
-          error: response.data.message || 'Login failed' 
+      const res = await api.post("/admin/login", { email, password });
+
+      if (!res.data.success) {
+        return { success: false, error: "Login failed" };
+      }
+
+      const { token, user } = res.data;
+
+      if (user.role !== "admin") {
+        return {
+          success: false,
+          error: "Admin access only",
         };
       }
-      
-    } catch (error) {
-      console.error('Login error:', error);
-      
-      let errorMessage = 'Login failed. Please check your credentials.';
-      
-      if (error.response) {
-        // Server responded with error
-        if (error.response.status === 401) {
-          errorMessage = 'Invalid email or password.';
-        } else if (error.response.status === 403) {
-          errorMessage = 'Access denied. Admin privileges required.';
-        } else if (error.response.status === 422) {
-          errorMessage = 'Validation failed. Please check your input.';
-        } else {
-          errorMessage = error.response.data?.message || `Server error: ${error.response.status}`;
-        }
-      } else if (error.request) {
-        // No response received
-        errorMessage = 'Cannot connect to server. Make sure Laravel is running: php artisan serve';
-      } else if (error.message.includes('Network Error')) {
-        errorMessage = 'Network error. Please check your connection.';
-      } else if (error.message.includes('timeout')) {
-        errorMessage = 'Request timeout. Server is taking too long to respond.';
-      }
-      
-      return { 
-        success: false, 
-        error: errorMessage 
-      };
+
+      localStorage.setItem("adminToken", token);
+      localStorage.setItem("adminUser", JSON.stringify(user));
+
+      setUser(user);
+      setToken(token);
+      setRole("admin");
+      setIsAuthenticated(true);
+
+      return { success: true };
+    } catch (err) {
+      let msg = "Login failed";
+
+      if (err.response?.status === 401) msg = "Invalid credentials";
+      if (err.response?.status === 403) msg = "Admin only";
+      if (err.code === "ERR_NETWORK")
+        msg = "Laravel server not running";
+
+      return { success: false, error: msg };
     }
   };
 
-  const logout = async () => {
+  /* ---------------- LOGOUT ---------------- */
+  const logout = async (redirect = true) => {
     try {
-      // Call logout API if we have a token
       if (token) {
-        await api.post('/logout');
+        await api.post("/logout");
       }
-    } catch (error) {
-      console.log('Logout API error (ignoring):', error.message);
+    } catch (e) {
+      // ignore
     }
-    
-    // Clear local storage
-    localStorage.removeItem('adminToken');
-    localStorage.removeItem('adminUser');
-    
-    // Reset state
-    setToken(null);
+
+    localStorage.removeItem("adminToken");
+    localStorage.removeItem("adminUser");
+
     setUser(null);
+    setToken(null);
+    setRole("guest");
     setIsAuthenticated(false);
-    setRole('guest');
-    
-    // Redirect to login
-    window.location.href = '/login';
+
+    if (redirect) {
+      window.location.href = "/login";
+    }
   };
 
+  /* ---------------- PROVIDER VALUE ---------------- */
   return (
     <AuthContext.Provider
       value={{
         user,
         token,
         role,
-        login,
-        logout,
         loading,
         isAuthenticated,
+        login,
+        logout,
         api,
       }}
     >

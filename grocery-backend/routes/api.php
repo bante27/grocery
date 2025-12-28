@@ -2,76 +2,110 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
-use App\Http\Controllers\ProductController;
+use App\Http\Controllers\Admin\ProductController;
 use App\Http\Controllers\ContactController;
 use App\Http\Controllers\Admin\MessageController;
-use App\Http\Controllers\Admin\DashboardController;
-use App\Http\Controllers\OrderController;
-use App\Http\Controllers\UserController;
+use App\Http\Controllers\Admin\UserController;
+use App\Http\Controllers\OrdersController;
+use Tymon\JWTAuth\Http\Middleware\Authenticate;
 
-// Public routes
-Route::post('/register', [AuthController::class, 'register']);
-Route::post('/login', [AuthController::class, 'login']);
-Route::post('/contact', [ContactController::class, 'store']);
-Route::get('/products', [ProductController::class, 'index']);
-
-// Test route (for debugging)
+/*
+|--------------------------------------------------------------------------
+| TEST ROUTE
+|--------------------------------------------------------------------------
+*/
 Route::get('/test', function () {
     return response()->json([
-        'success' => true,
-        'message' => 'Laravel API is working!',
-        'timestamp' => now(),
-        'env' => app()->environment()
+        'status' => true,
+        'message' => 'API is working successfully'
     ]);
 });
 
-// Admin login route (public)
+/*
+|--------------------------------------------------------------------------
+| PUBLIC ROUTES
+|--------------------------------------------------------------------------
+*/
+Route::post('/register', [AuthController::class, 'register']);
+Route::post('/login', [AuthController::class, 'login']);
+Route::post('/contact', [ContactController::class, 'store']);
 Route::post('/admin/login', [AuthController::class, 'adminLogin']);
+Route::post('/refresh', [AuthController::class, 'refresh']);
 
-// Admin public test endpoint for messages
-Route::get('/admin/messages/public', [MessageController::class, 'publicIndex']);
+/*
+|--------------------------------------------------------------------------
+| PUBLIC PRODUCT ROUTES (for viewing products)
+|--------------------------------------------------------------------------
+*/
+Route::prefix('products')->group(function () {
+    Route::get('/', [ProductController::class, 'index']);
+    Route::get('/stats', [ProductController::class, 'stats']); 
+    Route::get('/{id}', [ProductController::class, 'show']);
+});
 
-// Authenticated routes (for all users)
-Route::middleware('auth:sanctum')->group(function () {
+/*
+|--------------------------------------------------------------------------
+| JWT AUTHENTICATED ROUTES
+|--------------------------------------------------------------------------
+*/
+Route::middleware(['jwt.auth'])->group(function () {
     // User routes
     Route::get('/user', [AuthController::class, 'user']);
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::put('/profile', [AuthController::class, 'updateProfile']);
-    
-    // Order routes
-    Route::post('/orders', [OrderController::class, 'store']);
-    Route::get('/orders', [OrderController::class, 'index']);
-    Route::get('/orders/{id}', [OrderController::class, 'show']);
-});
 
-// Admin only routes (protected by admin middleware)
-Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function () {
-    // Dashboard stats
-    Route::get('/dashboard/stats', [DashboardController::class, 'stats']);
-    
-    // Product management
+    // Order routes
+    Route::post('/orders', [OrdersController::class, 'store']);
+    Route::get('/orders', [OrdersController::class, 'index']);
+    Route::get('/orders/{id}', [OrdersController::class, 'show']);
+
+    // PRODUCT MANAGEMENT ROUTES
     Route::post('/products', [ProductController::class, 'store']);
     Route::put('/products/{id}', [ProductController::class, 'update']);
     Route::delete('/products/{id}', [ProductController::class, 'destroy']);
-    
-    // Message management
-    Route::get('/messages', [MessageController::class, 'index']);
-    Route::get('/messages/{id}', [MessageController::class, 'show']);
-    Route::put('/messages/{id}', [MessageController::class, 'update']);
-    Route::delete('/messages/{id}', [MessageController::class, 'destroy']);
-    Route::post('/messages/{id}/reply', [MessageController::class, 'reply']);
-    
-    // Order management
-    Route::get('/orders', [OrderController::class, 'adminIndex']);
-    Route::put('/orders/{id}/status', [OrderController::class, 'updateStatus']);
-    
-    // User management
-    Route::get('/users', [UserController::class, 'index']);
-    Route::get('/users/{id}', [UserController::class, 'show']);
 });
-Route::prefix('auth')->group(function () {
-    Route::post('/login', [AuthController::class, 'login']);
-    Route::post('/register', [AuthController::class, 'register']);
-    Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth:sanctum');
-    Route::get('/me', [AuthController::class, 'me'])->middleware('auth:sanctum');
+
+/*
+|--------------------------------------------------------------------------
+| ADMIN MESSAGES ROUTES
+|--------------------------------------------------------------------------
+*/
+Route::prefix('admin/messages')->group(function () {
+    Route::get('/', [MessageController::class, 'index']);
+    Route::get('/stats', [MessageController::class, 'stats']);
+    Route::get('/{id}', [MessageController::class, 'show']);
+    Route::put('/{id}/toggle-read', [MessageController::class, 'toggleRead']);
+    Route::put('/mark-all-read', [MessageController::class, 'markAllRead']);
+    Route::post('/{id}/reply', [MessageController::class, 'sendReply']);
+    Route::delete('/{id}', [MessageController::class, 'destroy']);
+});
+
+/*
+|--------------------------------------------------------------------------
+| ADMIN PROTECTED ROUTES
+|--------------------------------------------------------------------------
+*/
+Route::prefix('admin')->group(function () {
+    Route::get('/users', [UserController::class, 'index']);
+    Route::get('/users/stats', [UserController::class, 'stats']);
+    Route::post('/users/{id}/make-admin', [UserController::class, 'makeAdmin']);
+    Route::post('/users/{id}/remove-admin', [UserController::class, 'removeAdmin']);
+    Route::post('/users/{id}/restrict', [UserController::class, 'restrict']);
+    Route::post('/users/{id}/unrestrict', [UserController::class, 'unrestrict']);
+    Route::post('/users/{id}/verify', [UserController::class, 'verify']);
+    Route::delete('/users/{id}', [UserController::class, 'destroy']);
+});
+
+Route::prefix('password')->group(function () {
+    Route::post('/forgot', [AuthController::class, 'forgotPassword']);
+    Route::post('/verify-otp', [AuthController::class, 'verifyOtp']);
+    Route::post('/reset', [AuthController::class, 'resetPassword']);
+    Route::post('/resend-otp', [AuthController::class, 'resendOtp']);
+});
+// Admin routes
+Route::prefix('admin')->group(function () {
+    // Orders
+    Route::get('/orders', [AdminOrderController::class, 'index']);
+    Route::put('/orders/{id}/status', [AdminOrderController::class, 'updateStatus']);
+    Route::get('/orders/stats', [AdminOrderController::class, 'stats']);
 });

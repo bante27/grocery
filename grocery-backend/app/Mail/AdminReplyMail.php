@@ -10,17 +10,25 @@ class AdminReplyMail extends Mailable
 {
     use Queueable, SerializesModels;
 
-    public $replyText;
+    public $userName;
+    public $originalSubject;
+    public $adminReply;
 
-    public function __construct($replyText)
+    public function __construct($userName, $originalSubject, $adminReply)
     {
-        $this->replyText = $replyText;
+        $this->userName = $userName;
+        $this->originalSubject = $originalSubject;
+        $this->adminReply = $adminReply;
     }
 
     public function build()
     {
-        return $this->subject('Reply from Admin')
+        return $this->subject('Re: ' . $this->originalSubject)
                     ->view('emails.admin_reply')
-                    ->with(['replyText' => $this->replyText]);
+                    ->with([
+                        'userName' => $this->userName,
+                        'adminReply' => $this->adminReply,
+                        'replyDate' => now()->format('F j, Y \a\t g:i A')
+                    ]);
     }
 }

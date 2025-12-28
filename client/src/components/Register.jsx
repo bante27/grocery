@@ -58,7 +58,7 @@ const Register = () => {
         
         // Redirect after 2 seconds
         setTimeout(() => {
-          navigate('/sho');
+          navigate('/shop');
         }, 2000);
       } else {
         setError(response.data.message || 'Registration failed');

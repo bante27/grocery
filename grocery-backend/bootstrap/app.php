@@ -17,3 +17,7 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withExceptions(function (Exceptions $exceptions): void {
         //
     })->create();
+header('Access-Control-Allow-Origin: http://localhost:3000'); // or your React port
+header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
+header('Access-Control-Allow-Headers: Origin, Content-Type, Authorization, Accept, X-Requested-With');
+header('Access-Control-Allow-Credentials: true');

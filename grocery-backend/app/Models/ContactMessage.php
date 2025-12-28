@@ -8,16 +8,18 @@ use Illuminate\Database\Eloquent\Model;
 class ContactMessage extends Model
 {
     use HasFactory;
-    
+
     protected $fillable = [
         'name',
         'email',
-        'phone',
         'subject',
         'message',
-        'is_read',   // Add this
-        'status',    // Optional: if you have status
-        'admin_notes',
-        'read_at'
+        'is_read',
+        'read_at',
+    ];
+
+    protected $casts = [
+        'is_read' => 'boolean',
+        'read_at' => 'datetime',
     ];
 }

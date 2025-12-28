@@ -1,7 +1,6 @@
-// app/Http/Controllers/API/ProductController.php
 <?php
 
-
+namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Product;
@@ -11,63 +10,124 @@ use Illuminate\Support\Facades\Validator;
 
 class ProductController extends Controller
 {
-    // Get all products (public)
-    public function index()
+    protected $rules = [
+        'name' => 'required|string|max:255',
+        'description' => 'nullable|string',
+        'original_price' => 'required|numeric|min:0',
+        'sale_price' => 'required|numeric|min:0',
+        'category' => 'required|string',
+        'on_sale' => 'sometimes|boolean',
+        'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:5120'
+    ];
+
+    public function index(Request $request)
     {
-        $products = Product::latest()->get();
-        
+        $query = Product::query();
+
+        if ($request->search) {
+            $query->where('name', 'LIKE', "%{$request->search}%");
+        }
+
+        if ($request->category && $request->category !== 'all') {
+            $query->where('category', $request->category);
+        }
+
+        $products = $query->latest()->get();
+
         return response()->json([
             'success' => true,
             'products' => $products
         ]);
     }
 
-    // Store new product (admin only)
-    public function store(Request $request)
+    public function stats()
     {
-        $validator = Validator::make($request->all(), [
-            'name' => 'required|string|max:255',
-            'description' => 'nullable|string',
-            'price' => 'required|numeric|min:0',
-            'image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048'
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'errors' => $validator->errors()
-            ], 422);
-        }
-
-        $productData = $request->only(['name', 'description', 'price']);
-
-        if ($request->hasFile('image')) {
-            $imagePath = $request->file('image')->store('products', 'public');
-            $productData['image'] = $imagePath;
-        }
-
-        $product = Product::create($productData);
+        $total = Product::count();
+        $onSale = Product::where('on_sale', true)->count();
+        $totalValue = Product::sum('sale_price');
+        $averagePrice = $total > 0 ? $totalValue / $total : 0;
 
         return response()->json([
             'success' => true,
-            'message' => 'Product created successfully',
+            'stats' => [
+                'total' => $total,
+                'on_sale' => $onSale,
+                'total_value' => (float) $totalValue,
+                'average_price' => (float) $averagePrice
+            ]
+        ]);
+    }
+
+    public function show($id)
+    {
+        $product = Product::findOrFail($id);
+
+        return response()->json([
+            'success' => true,
             'product' => $product
+        ]);
+    }
+
+    public function store(Request $request)
+    {
+        $validator = Validator::make($request->all(), $this->rules);
+        if ($validator->fails()) {
+            return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
+        }
+
+        $data = $validator->validated();
+        $data['on_sale'] = $request->boolean('on_sale');
+
+        if ($request->hasFile('image')) {
+            $data['image'] = $request->file('image')->store('products', 'public');
+        }
+
+        $product = Product::create($data);
+
+        return response()->json([
+            'success' => true,
+            'product' => $product,
+            'message' => 'Product created successfully'
         ], 201);
     }
 
-    // Delete product (admin only)
-    public function destroy($id)
+    public function update(Request $request, $id)
     {
-        $product = Product::find($id);
+        $product = Product::findOrFail($id);
 
-        if (!$product) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Product not found'
-            ], 404);
+        $validator = Validator::make($request->all(), $this->rules);
+        if ($validator->fails()) {
+            return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
         }
 
-        // Delete image from storage if exists
+        $data = $validator->validated();
+        $data['on_sale'] = $request->boolean('on_sale');
+
+        if ($request->hasFile('image')) {
+            if ($product->image && Storage::disk('public')->exists($product->image)) {
+                Storage::disk('public')->delete($product->image);
+            }
+            $data['image'] = $request->file('image')->store('products', 'public');
+        } elseif ($request->has('remove_image') && $request->remove_image) {
+            if ($product->image && Storage::disk('public')->exists($product->image)) {
+                Storage::disk('public')->delete($product->image);
+            }
+            $data['image'] = null;
+        }
+
+        $product->update($data);
+
+        return response()->json([
+            'success' => true, 
+            'product' => $product,
+            'message' => 'Product updated successfully'
+        ]);
+    }
+
+    public function destroy($id)
+    {
+        $product = Product::findOrFail($id);
+
         if ($product->image && Storage::disk('public')->exists($product->image)) {
             Storage::disk('public')->delete($product->image);
         }
